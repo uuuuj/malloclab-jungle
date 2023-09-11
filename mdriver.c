@@ -31,6 +31,7 @@
 #define LINENUM(i) (i+5) /* cnvt trace request nums to linenums (origin 1) */
 
 /* Returns true if p is ALIGNMENT-byte aligned */
+//이 매크로는 주어진 포인터 p가 특정 ALIGNMENT 값으로 정렬되어 있는지를 확인하는 역할을 합니다.
 #define IS_ALIGNED(p)  ((((unsigned int)(p)) % ALIGNMENT) == 0)
 
 /****************************** 
@@ -46,6 +47,7 @@ typedef struct range_t {
 
 /* Characterizes a single trace operation (allocator request) */
 typedef struct {
+	//ALLOC == 0, FREE == 1, REALLOC==2
     enum {ALLOC, FREE, REALLOC} type; /* type of request */
     int index;                        /* index for free() to use later */
     int size;                         /* byte size of alloc/realloc request */
@@ -139,17 +141,17 @@ int main(int argc, char **argv)
 {
     int i;
     char c;
-    char **tracefiles = NULL;  /* null-terminated array of trace file names */
-    int num_tracefiles = 0;    /* the number of traces in that array */
-    trace_t *trace = NULL;     /* stores a single trace file in memory */
-    range_t *ranges = NULL;    /* keeps track of block extents for one trace */
-    stats_t *libc_stats = NULL;/* libc stats for each trace */
-    stats_t *mm_stats = NULL;  /* mm (i.e. student) stats for each trace */
-    speed_t speed_params;      /* input parameters to the xx_speed routines */ 
+    char **tracefiles = NULL;  /* trace 파일 이름의 null로 종료되는 배열 */
+    int num_tracefiles = 0;    /* 그 배열에 있는 trace의 수 */
+    trace_t *trace = NULL;     /* 메모리에 단일 trace 파일을 저장*/
+    range_t *ranges = NULL;    /* 하나의 trace에 대한 블록 범위를 추적 */
+    stats_t *libc_stats = NULL;/* 각 trace에 대한 libc 통계 */
+    stats_t *mm_stats = NULL;  /* 각 trace에 대한 mm(즉, 학생) 통계 */
+    speed_t speed_params;      /* xx_speed 루틴에 대한 입력 매개변수 */ 
 
-    int team_check = 1;  /* If set, check team structure (reset by -a) */
-    int run_libc = 0;    /* If set, run libc malloc (set by -l) */
-    int autograder = 0;  /* If set, emit summary info for autograder (-g) */
+    int team_check = 1;  /* 설정된 경우, 팀 구조를 확인 (-a로 재설정) */
+    int run_libc = 0;    /* 설정된 경우, libc malloc 실행 (-l로 설정) */
+    int autograder = 0;  /* 설정된 경우, autograder를 위한 요약 정보 출력 (-g로 설정) */
 
     /* temporaries used to compute the performance index */
     double secs, ops, util, avg_mm_util, avg_mm_throughput, p1, p2, perfindex;
@@ -367,17 +369,22 @@ int main(int argc, char **argv)
 
 
 /*****************************************************************
- * The following routines manipulate the range list, which keeps 
- * track of the extent of every allocated block payload. We use the 
- * range list to detect any overlapping allocated blocks.
+ "다음의 루틴들은 범위 리스트를 조작합니다. 이 범위 리스트는 모든 할당된 블록 페이로드의 범위를 추적합니다. 
+ 우리는 할당된 블록들 사이에 중첩되는 부분을 탐지하기 위해 이 범위 리스트를 사용합니다."
+
+간단히 설명하면, 이러한 "루틴들"은 "범위 리스트"라는 데이터 구조를 사용하여 할당된 메모리 블록의 시작과 끝 범위를 관리하고 있습니다. 
+이 리스트는 메모리 블록들이 중첩되거나 겹치는 부분이 있는지 확인하기 위해 사용됩니다.
  ****************************************************************/
 
 /*
- * add_range - As directed by request opnum in trace tracenum,
- *     we've just called the student's mm_malloc to allocate a block of 
- *     size bytes at addr lo. After checking the block for correctness,
- *     we create a range struct for this block and add it to the range list. 
+ * "add_range - 트레이스 번호(tracenum)의 요청 연산 번호(opnum)에 따라, 
+ 우리는 방금 학생의 mm_malloc를 호출하여 주소 lo에서 size 바이트의 블록을 할당했습니다. 
+ 블록의 올바름을 확인한 후, 이 블록에 대한 범위 구조체(range struct)를 생성하고 범위 리스트에 추가합니다."
+
+간단히 설명하면, "add_range"라는 함수나 루틴은 학생이 작성한 mm_malloc 함수를 통해 메모리 블록을 할당한 후, 
+그 블록의 정확성을 확인합니다. 그 후 해당 블록에 대한 정보를 "범위 리스트"에 추가하는 작업을 수행합니다.
  */
+/*yujeong*/
 static int add_range(range_t **ranges, char *lo, int size, 
 		     int tracenum, int opnum)
 {
@@ -387,7 +394,8 @@ static int add_range(range_t **ranges, char *lo, int size,
 
     assert(size > 0);
 
-    /* Payload addresses must be ALIGNMENT-byte aligned */
+    /*페이로드 주소는 ALIGNMENT-바이트로 정렬되어야 합니다*/
+	/*정렬되어 있지 않으면 메세지 출력*/
     if (!IS_ALIGNED(lo)) {
 	sprintf(msg, "Payload address (%p) not aligned to %d bytes", 
 		lo, ALIGNMENT);
@@ -610,9 +618,11 @@ static int eval_mm_valid(trace_t *trace, int tracenum, range_t **ranges)
 	    }
 	    
 	    /* 
-	     * Test the range of the new block for correctness and add it 
-	     * to the range list if OK. The block must be  be aligned properly,
-	     * and must not overlap any currently allocated block. 
+	     * "새로운 블록의 범위를 올바름에 대해 테스트하고 문제가 없으면 범위 목록에 추가하십시오. 
+		 블록은 적절하게 정렬되어야 하며, 현재 할당된 블록과 겹쳐서는 안됩니다."
+
+		이 문장은 새로운 메모리 블록의 유효성을 검사하는 내용을 담고 있으며, 메모리 블록이 올바르게 정렬되어 있어야 하며, 
+		이미 할당된 다른 블록들과 겹치지 않아야 한다는 것을 강조하고 있습니다.
 	     */ 
 	    if (add_range(ranges, p, size, tracenum, i) == 0)
 		return 0;

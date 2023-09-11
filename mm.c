@@ -54,7 +54,7 @@ team_t team = {
 #define DSIZE 8
 // 1<<12 연산을 수행하면, 1비트가 12자리 왼쪽으로 이동
 // 010000000000  (2의 12승) 즉, 4096
-#define CHUNKSIZE (1 << 10)
+#define CHUNKSIZE (1 << 12)
 // x가 y보다 크면 x, x가 y보다 작으면 y
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
@@ -142,13 +142,13 @@ static void place(void *bp, size_t asize)
         // printf("할당 받은 후, 그 다음 블록의 시작 주소 : %p\n", bp+WSIZE);
         PUT(HDRP(bp), PACK(csize-asize, 0));
         PUT(FTRP(bp), PACK(csize-asize, 0));
-        last_fit_pointer = bp; // 검색 시작 위치
+        // last_fit_pointer = bp; // 검색 시작 위치
 
     } 
     else {
         PUT(HDRP(bp), PACK(csize, 1));
         PUT(FTRP(bp), PACK(csize, 1));
-        last_fit_pointer = bp;
+        // last_fit_pointer = bp;
     }
 }
 
