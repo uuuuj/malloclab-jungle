@@ -93,6 +93,10 @@ GET_SIZE(HDRP(bp)): 그 주소에서 unsigned int 유형의 값을 읽습니다.
 // GET_SIZE(...): 이 함수는 주어진 주소에서 블록의 크기를 가져옵니다. 여기서 주어진 주소는 현재 블록의 이전 블록의 푸터 주소입니다. 따라서 이 함수는 이전 블록의 크기를 반환합니다.
 #define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE(((char *)(bp)-DSIZE)))
 
+/*explicit 매크로*/
+#define PRE(bp) ((char *)(bp)-WSIZE)
+#define SUCC(bp) ((char *)(bp))
+
 // static void *last_fit_pointer = NULL; // 마지막으로 검사한 위치를 기억하는 포인터
 static void *last_fit_pointer;
 // static void *find_fit(size_t asize){
