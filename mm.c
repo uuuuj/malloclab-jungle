@@ -215,6 +215,7 @@ void insert_node(void *bp) {
     }
         
     else {
+        node = root -> succ; 
         root -> succ = new_node -> succ;
         new_node -> succ = node -> succ;
         new_node -> prev = NULL;
