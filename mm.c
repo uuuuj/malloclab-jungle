@@ -97,10 +97,7 @@ GET_SIZE(HDRP(bp)): 그 주소에서 unsigned int 유형의 값을 읽습니다.
 #define PRE(bp) ((char *)(bp)-WSIZE)
 #define SUCC(bp) ((char *)(bp))
 
-typedef struct Node{
-    int data;
-    struct Node_t *next;
-}Node_t;
+
 
 // static void *last_fit_pointer = NULL; // 마지막으로 검사한 위치를 기억하는 포인터
 static void *last_fit_pointer;
@@ -204,26 +201,38 @@ static void *coalesce(void *bp){
 
 }
 void delete_node(void *bp, size_t size) {
+    void* root  = SUCC(heap_listp);
+    if(bp == root) {
+        PUT(root, SUCC(bp));
+        if(root != NULL) PUT(PRE(bp), NULL);
+    }
     PUT(PRE(bp), PACK(GET_SIZE(HDRP(bp)), 0));
     PUT(SUCC(bp), PACK(GET_SIZE(HDRP(bp)), 0));
 }
+
 void insert_node(void *bp) {
+    // LIFO: set bp as top
     void *new_node = bp;
     void *node;
-    if(root -> succ == NULL) {
-        root -> succ = SUCC(bp);
+
+    void *root = SUCC(heap_listp);
+    // root is prologue's succ
+    if(root  == NULL) {
+        PUT(root, (size_t)bp);
+    } else {
+        PUT(PRE(root), (size_t)bp);
     }
         
-    else {
-        node = root -> succ; 
-        root -> succ = new_node -> succ;
-        new_node -> succ = node -> succ;
-        new_node -> prev = NULL;
-        node -> prev = new_node -> prev;
-        node -> succ = NULL;
-    }
-    PUT(PRE(bp), PACK(0, 1));
-    PUT(SUCC(bp), PACK(0, 1));
+    // else {
+    //     node = root -> succ; 
+    //     root -> succ = new_node -> succ;
+    //     new_node -> succ = node -> succ;
+    //     new_node -> prev = NULL;
+    //     node -> prev = new_node;
+    //     node -> succ = NULL;
+    // }
+    PUT(PRE(bp), (size_t)NULL);
+    PUT(SUCC(bp), (size_t)root);
 
 }
 void mm_free(void *bp){
