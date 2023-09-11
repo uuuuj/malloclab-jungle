@@ -19,7 +19,7 @@
 #include "memlib.h"
 
 static char *heap_listp;
-
+static char *root = NULL;
 /*********************************************************
  * NOTE TO STUDENTS: Before you do anything else, please
  * provide your team information in the following struct.
@@ -97,6 +97,11 @@ GET_SIZE(HDRP(bp)): 그 주소에서 unsigned int 유형의 값을 읽습니다.
 #define PRE(bp) ((char *)(bp)-WSIZE)
 #define SUCC(bp) ((char *)(bp))
 
+typedef struct Node{
+    int data;
+    struct Node_t *next;
+}Node_t;
+
 // static void *last_fit_pointer = NULL; // 마지막으로 검사한 위치를 기억하는 포인터
 static void *last_fit_pointer;
 // static void *find_fit(size_t asize){
@@ -163,12 +168,15 @@ static void *coalesce(void *bp){
 
     if(prev_alloc&&next_alloc) {//case 1
         last_fit_pointer = bp;
+        insert_node(bp);
         return bp;
     }
     else if (prev_alloc && !next_alloc){//case 2
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
         PUT(HDRP(bp), PACK(size, 0));
         PUT(FTRP(bp), PACK(size, 0));
+        /*NEXT_BLKP에 있을 prev와 succ을 del해준다*/
+        delete_node(NEXT_BLKP(bp));
     }
 
     else if(!prev_alloc && next_alloc) { //case3
@@ -176,17 +184,45 @@ static void *coalesce(void *bp){
         PUT(FTRP(bp), PACK(size, 0));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
         bp = PREV_BLKP(bp);
+        /*PREV_BLKP에 있을 prev와 succ을 del해준다*/
+        delete_node(PREV_BLKP(bp));
     }
 
     else{ //case 4
         size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
+        delete_node(PREV_BLKP(bp));
+        delete_node(NEXT_BLKP(bp));
         bp = PREV_BLKP(bp);
     }
     last_fit_pointer = bp;
+    /**/
+    insert_node(bp);
     return bp;
 
+
+}
+void delete_node(void *bp, size_t size) {
+    PUT(PRE(bp), PACK(GET_SIZE(HDRP(bp)), 0));
+    PUT(SUCC(bp), PACK(GET_SIZE(HDRP(bp)), 0));
+}
+void insert_node(void *bp) {
+    void *new_node = bp;
+    void *node;
+    if(root -> succ == NULL) {
+        root -> succ = SUCC(bp);
+    }
+        
+    else {
+        root -> succ = new_node -> succ;
+        new_node -> succ = node -> succ;
+        new_node -> prev = NULL;
+        node -> prev = new_node -> prev;
+        node -> succ = NULL;
+    }
+    PUT(PRE(bp), PACK(0, 1));
+    PUT(SUCC(bp), PACK(0, 1));
 
 }
 void mm_free(void *bp){
