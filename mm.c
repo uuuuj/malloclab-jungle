@@ -18,8 +18,7 @@
 #include "mm.h"
 #include "memlib.h"
 
-static char *heap_listp;
-static char *root = NULL;
+// static char *root = NULL;
 /*********************************************************
  * NOTE TO STUDENTS: Before you do anything else, please
  * provide your team information in the following struct.
@@ -28,13 +27,14 @@ team_t team = {
     /* Team name */
     "ateam",
     /* First member's full name */
-    "Harry Bovik",
+    "HarryBovik",
     /* First member's email address */
     "bovik@cs.cmu.edu",
     /* Second member's full name (leave blank if none) */
     "",
     /* Second member's email address (leave blank if none) */
-    ""};
+    ""
+};
 
 /* single word (4) or double word (8) alignment */
 //메모리의 정렬 값 (ALIGNMENT)을 8 바이트로 설정
@@ -101,8 +101,29 @@ GET_SIZE(HDRP(bp)): 그 주소에서 unsigned int 유형의 값을 읽습니다.
 
 
 // static void *last_fit_pointer = NULL; // 마지막으로 검사한 위치를 기억하는 포인터
-static void *last_fit_pointer;
-static void *free_listp = NULL; // free list head - 가용리스트 시작부분
+// static void *last_fit_pointer;
+static char *free_listp; // free list head - 가용리스트 시작부분
+static void *heap_listp;
+
+/*function*/
+static void *find_fit(size_t asize);
+static void place(void *bp, size_t asize);
+static void *coalesce(void *bp);
+void delete_node(void *bp);
+void insert_node(void *bp);
+static void *extend_heap(size_t words);
+//explicit
+static void *find_fit(size_t asize){
+    void *bp;
+    for (bp = heap_listp; GET_ALLOC(HDRP(bp)) != 1; bp = NEXT_BLKP(bp)) {
+        if ((asize <= GET_SIZE(HDRP(bp)))) {
+            // printf("할당 받은 주소 : %p\n", bp);
+            return bp;
+        }
+    }
+    return NULL;
+}
+//implicit
 // static void *find_fit(size_t asize){
 //     void *bp;
 //     for (bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)) {
@@ -114,34 +135,35 @@ static void *free_listp = NULL; // free list head - 가용리스트 시작부분
 //     return NULL;
 // }
 
-void *find_fit(size_t asize) {
-    void *start = last_fit_pointer; // 검색 시작 위치
+// void *find_fit(size_t asize) {
+//     void *start = last_fit_pointer; // 검색 시작 위치
 
-    // 초기 시작점이 설정되지 않았다면 heap의 시작으로 설정
-    if (start == NULL) start = heap_listp;
+//     // 초기 시작점이 설정되지 않았다면 heap의 시작으로 설정
+//     if (start == NULL) start = heap_listp;
 
-    // 시작 위치부터 힙의 끝까지 검색
-    for (void *bp = start; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)) {
-        if (!GET_ALLOC(HDRP(bp)) && asize <= GET_SIZE(HDRP(bp))) {
-            last_fit_pointer = bp; // 위치 정보 업데이트
-            return bp; // 적합한 블록 찾으면 반환
-        }
-        // last_fit_pointer;
-    }
+//     // 시작 위치부터 힙의 끝까지 검색
+//     for (void *bp = start; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)) {
+//         if (!GET_ALLOC(HDRP(bp)) && asize <= GET_SIZE(HDRP(bp))) {
+//             last_fit_pointer = bp; // 위치 정보 업데이트
+//             return bp; // 적합한 블록 찾으면 반환
+//         }
+//         // last_fit_pointer;
+//     }
 
-    // 초기 시작점부터 검색한 위치까지 다시 검색
-    for (void *bp = heap_listp; bp != start; bp = NEXT_BLKP(bp)) {
-        if (!GET_ALLOC(HDRP(bp)) && asize <= GET_SIZE(HDRP(bp))) {
-            last_fit_pointer = bp; // 위치 정보 업데이트
-            return bp; // 적합한 블록 찾으면 반환
-        }
-    }
+//     // 초기 시작점부터 검색한 위치까지 다시 검색
+//     for (void *bp = heap_listp; bp != start; bp = NEXT_BLKP(bp)) {
+//         if (!GET_ALLOC(HDRP(bp)) && asize <= GET_SIZE(HDRP(bp))) {
+//             last_fit_pointer = bp; // 위치 정보 업데이트
+//             return bp; // 적합한 블록 찾으면 반환
+//         }
+//     }
 
-    return NULL; // 적합한 블록을 찾지 못하면 NULL 반환
-}
+//     return NULL; // 적합한 블록을 찾지 못하면 NULL 반환
+// }
 static void place(void *bp, size_t asize)
 {
     size_t csize = GET_SIZE(HDRP(bp));
+    delete_node(bp);
 
     if ((csize - asize) >= (2*DSIZE)) {
         PUT(HDRP(bp), PACK(asize, 1));
@@ -166,13 +188,13 @@ static void *coalesce(void *bp){
     size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
     size_t size = GET_SIZE(HDRP(bp));
 
-    if(prev_alloc&&next_alloc) {//case 1
+    // if(prev_alloc&&next_alloc) {//case 1
 
-        last_fit_pointer = bp;
-        insert_node(bp);
-        return bp;
-    }
-    else if (prev_alloc && !next_alloc){//case 2
+    //     last_fit_pointer = bp;
+    //     insert_node(bp);
+    //     return bp;
+    // }
+    if (prev_alloc && !next_alloc){//case 2
         /*NEXT_BLKP에 있을 prev와 succ을 del해준다*/
         delete_node(NEXT_BLKP(bp));
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
@@ -192,7 +214,7 @@ static void *coalesce(void *bp){
         
     }
 
-    else{ //case 4
+    else if(!prev_alloc && !next_alloc){ //case 4
         delete_node(PREV_BLKP(bp));
         delete_node(NEXT_BLKP(bp));
         size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));
@@ -200,7 +222,7 @@ static void *coalesce(void *bp){
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
         bp = PREV_BLKP(bp);
     }
-    last_fit_pointer = bp;
+    // last_fit_pointer = bp;
     /**/
     insert_node(bp);
     return bp;
@@ -275,7 +297,7 @@ int mm_init(void)
     /*mem_sbrk는 메모리 할당에 실패한 경우 (void*)-1반환한다.
     즉 heap_listp = (void*)-1일 경우, -1을 리턴한다.
     */
-    if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1)
+    if ((heap_listp = mem_sbrk(6 * WSIZE)) == (void *)-1)
     {
         return -1;
     }
@@ -295,7 +317,7 @@ int mm_init(void)
     PUT(heap_listp + (4*WSIZE), PACK(ALIGNMENT, 1)); //프롤로그 풋터 16/1
     PUT(heap_listp + (5*WSIZE), PACK(0, 1)); //에필로그 헤더 0/1
     // heap_listp의 주소값에서 (2*WSIZE) 바이트만큼 증가시킨다
-    heap_listp += (2 * WSIZE);
+    // heap_listp += (2 * WSIZE);
     free_listp = heap_listp + DSIZE;//free_listp 가 prev 포인터를 가리키게 초기화
     // printf("힙의 시작 주소 : %p\n", heap_listp);
     /*Extend the emplty heap woth a free block of CHUNKSIZE bytes*/
@@ -325,7 +347,7 @@ void *mm_malloc(size_t size)
     size_t extendsize;
     char *bp;
 
-    if(size == 0)
+    if(size <= 0)
         return NULL;
     if (size <= DSIZE)
         asize = 2 * DSIZE;
