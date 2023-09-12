@@ -27,7 +27,7 @@ team_t team = {
     /* Team name */
     "ateam",
     /* First member's full name */
-    "HarryBovik",
+    "Harry Bovik",
     /* First member's email address */
     "bovik@cs.cmu.edu",
     /* Second member's full name (leave blank if none) */
@@ -115,7 +115,7 @@ static void *extend_heap(size_t words);
 //explicit
 static void *find_fit(size_t asize){
     void *bp;
-    for (bp = heap_listp; GET_ALLOC(HDRP(bp)) != 1; bp = NEXT_BLKP(bp)) {
+    for (bp = free_listp; GET_ALLOC(HDRP(bp)) != 1; bp = SUCC(bp)) {
         if ((asize <= GET_SIZE(HDRP(bp)))) {
             // printf("할당 받은 주소 : %p\n", bp);
             return bp;
@@ -345,7 +345,7 @@ void *mm_malloc(size_t size)
 
     size_t asize;
     size_t extendsize;
-    char *bp;
+    void *bp;
 
     if(size <= 0)
         return NULL;
