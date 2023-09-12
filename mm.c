@@ -38,7 +38,7 @@ team_t team = {
 
 /* single word (4) or double word (8) alignment */
 //메모리의 정렬 값 (ALIGNMENT)을 8 바이트로 설정
-#define ALIGNMENT 8
+#define ALIGNMENT 16
 
 /* rounds up to the nearest multiple of ALIGNMENT */
 //이 매크로는 주어진 size를 가장 가까운 ALIGNMENT의 배수 값으로 올림합니다. 
@@ -94,13 +94,15 @@ GET_SIZE(HDRP(bp)): 그 주소에서 unsigned int 유형의 값을 읽습니다.
 #define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE(((char *)(bp)-DSIZE)))
 
 /*explicit 매크로*/
-#define PRE(bp) ((char *)(bp)-WSIZE)
-#define SUCC(bp) ((char *)(bp))
+#define PREV(bp) (*(void**)(bp))
+#define SUCC(bp) (*(void**)(bp + WSIZE))
+
 
 
 
 // static void *last_fit_pointer = NULL; // 마지막으로 검사한 위치를 기억하는 포인터
 static void *last_fit_pointer;
+static void *free_listp = NULL; // free list head - 가용리스트 시작부분
 // static void *find_fit(size_t asize){
 //     void *bp;
 //     for (bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)) {
@@ -148,6 +150,7 @@ static void place(void *bp, size_t asize)
         // printf("할당 받은 후, 그 다음 블록의 시작 주소 : %p\n", bp+WSIZE);
         PUT(HDRP(bp), PACK(csize-asize, 0));
         PUT(FTRP(bp), PACK(csize-asize, 0));
+        insert_node(bp);
         // last_fit_pointer = bp; // 검색 시작 위치
 
     } 
@@ -164,33 +167,37 @@ static void *coalesce(void *bp){
     size_t size = GET_SIZE(HDRP(bp));
 
     if(prev_alloc&&next_alloc) {//case 1
+
         last_fit_pointer = bp;
         insert_node(bp);
         return bp;
     }
     else if (prev_alloc && !next_alloc){//case 2
+        /*NEXT_BLKP에 있을 prev와 succ을 del해준다*/
+        delete_node(NEXT_BLKP(bp));
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
         PUT(HDRP(bp), PACK(size, 0));
         PUT(FTRP(bp), PACK(size, 0));
-        /*NEXT_BLKP에 있을 prev와 succ을 del해준다*/
-        delete_node(NEXT_BLKP(bp));
+        
     }
 
     else if(!prev_alloc && next_alloc) { //case3
+        /*PREV_BLKP에 있을 prev와 succ을 del해준다*/
+        delete_node(PREV_BLKP(bp));
         size += GET_SIZE(HDRP(PREV_BLKP(bp)));
         PUT(FTRP(bp), PACK(size, 0));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
         bp = PREV_BLKP(bp);
-        /*PREV_BLKP에 있을 prev와 succ을 del해준다*/
-        delete_node(PREV_BLKP(bp));
+        
+        
     }
 
     else{ //case 4
+        delete_node(PREV_BLKP(bp));
+        delete_node(NEXT_BLKP(bp));
         size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
         PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
-        delete_node(PREV_BLKP(bp));
-        delete_node(NEXT_BLKP(bp));
         bp = PREV_BLKP(bp);
     }
     last_fit_pointer = bp;
@@ -200,40 +207,22 @@ static void *coalesce(void *bp){
 
 
 }
-void delete_node(void *bp, size_t size) {
-    void* root  = SUCC(heap_listp);
-    if(bp == root) {
-        PUT(root, SUCC(bp));
-        if(root != NULL) PUT(PRE(bp), NULL);
+void delete_node(void *bp) {
+    //첫 번째 블록을 없앨 때
+    if(bp==free_listp){
+        PREV(SUCC(bp)) = NULL;
+        free_listp = SUCC(bp);
+    } else{
+        SUCC(PREV(bp)) = SUCC(bp);
+        PREV(SUCC(bp)) = PREV(bp);
     }
-    PUT(PRE(bp), PACK(GET_SIZE(HDRP(bp)), 0));
-    PUT(SUCC(bp), PACK(GET_SIZE(HDRP(bp)), 0));
 }
 
 void insert_node(void *bp) {
-    // LIFO: set bp as top
-    void *new_node = bp;
-    void *node;
-
-    void *root = SUCC(heap_listp);
-    // root is prologue's succ
-    if(root  == NULL) {
-        PUT(root, (size_t)bp);
-    } else {
-        PUT(PRE(root), (size_t)bp);
-    }
-        
-    // else {
-    //     node = root -> succ; 
-    //     root -> succ = new_node -> succ;
-    //     new_node -> succ = node -> succ;
-    //     new_node -> prev = NULL;
-    //     node -> prev = new_node;
-    //     node -> succ = NULL;
-    // }
-    PUT(PRE(bp), (size_t)NULL);
-    PUT(SUCC(bp), (size_t)root);
-
+    SUCC(bp) = free_listp;
+    PREV(bp) = NULL;
+    PREV(free_listp) = bp;
+    free_listp = bp;
 }
 void mm_free(void *bp){
     //bp의 헤더 크기
@@ -274,7 +263,7 @@ static void *extend_heap(size_t words)
     PACK(0, 1)블록의 사이즈는 0이며, alloc은 1이다. 즉 할당된 상태를 나타낸다.
     HDRP(): 다음 블록의 시작지점에서 WSIZE만큼 떨어진 값을 반환한다.
     즉 다음블록의 시작지점이며, 이 헤더는 사이즈 정보와 할당상태를 가지고 있다.*/
-    PUT(HDRP(NEXT_BLKP(bp)), PACK(0,1));
+    PUT(HDRP(NEXT_BLKP(bp)), PACK(0,1)); //new epilogue header
     return coalesce(bp);
 }
 /*
@@ -294,11 +283,20 @@ int mm_init(void)
     // heap_listp의 주소에 unsigned int값 0을 저장
     PUT(heap_listp, 0);
     // heap_listp의 주소에서 (n*WSIZE)바이트만큼 증가한 주소 값에 PACK(DSIZE, 1)을 저장한다.
-    PUT(heap_listp + (1 * WSIZE), PACK(DSIZE, 1)); // plologue header
-    PUT(heap_listp + (2 * WSIZE), PACK(DSIZE, 1)); // prologue footer
-    PUT(heap_listp + (3 * WSIZE), PACK(0, 1));     // epilogue footer
+    /*implicit*/
+    // PUT(heap_listp + (1 * WSIZE), PACK(DSIZE, 1)); // plologue header
+    // PUT(heap_listp + (2 * WSIZE), PACK(DSIZE, 1)); // prologue footer
+    // PUT(heap_listp + (3 * WSIZE), PACK(0, 1));     // epilogue footer
+
+    /*explicit*/
+    PUT(heap_listp + (1*WSIZE), PACK(ALIGNMENT,1)); //프롤로그 헤더 16/1
+    PUT(heap_listp + (2*WSIZE), 0); //프롤로그 PREV 포인터 NULL로 초기화
+    PUT(heap_listp + (3*WSIZE), 0); //프롤로그 NEXT 포인터 NULL로 초기화
+    PUT(heap_listp + (4*WSIZE), PACK(ALIGNMENT, 1)); //프롤로그 풋터 16/1
+    PUT(heap_listp + (5*WSIZE), PACK(0, 1)); //에필로그 헤더 0/1
     // heap_listp의 주소값에서 (2*WSIZE) 바이트만큼 증가시킨다
     heap_listp += (2 * WSIZE);
+    free_listp = heap_listp + DSIZE;//free_listp 가 prev 포인터를 가리키게 초기화
     // printf("힙의 시작 주소 : %p\n", heap_listp);
     /*Extend the emplty heap woth a free block of CHUNKSIZE bytes*/
     if (extend_heap(CHUNKSIZE / WSIZE) == NULL)
@@ -369,7 +367,7 @@ void *mm_realloc(void *ptr, size_t size)
     if (size < copySize)
         copySize = size;
     // else if (!GET_ALLOC(HDRP(NEXT_BLKP(oldptr))) || !GET_SIZE(HDRP(NEXT_BLKP(oldptr)))) {
-    //     extend_heap()
+    //     extend_heap();
     // }
     
     memcpy(newptr, oldptr, copySize);
