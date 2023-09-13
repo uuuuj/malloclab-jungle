@@ -42,7 +42,7 @@ team_t team = {
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 #define WSIZE 4
 #define DSIZE 8
-#define CHUNKSIZE (1 << 12)
+#define CHUNKSIZE (1 << 9)
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 #define PACK(size, alloc) ((size) | (alloc))
 #define GET(p) (*(unsigned int *)(p))
@@ -163,8 +163,8 @@ static void *coalesce(void *bp){
     }
 
     else if(!prev_alloc && next_alloc) { //case3
-        
-        delete_seglist(PREV(bp));
+        // printf("%p\n", PREV(bp));
+        delete_seglist(PREV_BLKP(bp));
         size += GET_SIZE(HDRP(PREV_BLKP(bp)));
         PUT(FTRP(bp), PACK(size, 0));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
@@ -211,9 +211,7 @@ static void *extend_heap(size_t words)
     }
     
     PUT(HDRP(bp), PACK(size, 0));
-   
     PUT(FTRP(bp), PACK(size, 0));
-    
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0,1));
     return coalesce(bp);
 }
@@ -244,10 +242,10 @@ int mm_init(void)
     }
     return 0;
     
-    if (extend_heap(CHUNKSIZE / WSIZE) == NULL)
-        return -1;
+    // if (extend_heap(CHUNKSIZE / WSIZE) == NULL)
+    //     return -1;
 
-    return 0;
+    // return 0;
 }
 
 /*
@@ -255,28 +253,24 @@ int mm_init(void)
  *     Always allocate a block whose size is a multiple of the alignment.
  */
 void *mm_malloc(size_t size)
-{
-    
-
+{   
+   
+    // printf("malloc start\n");
     size_t asize;
     size_t extendsize;
-    void *bp;
-
-    if(size <= 0)
+    char *bp;
+    if (size == 0)
+    {
         return NULL;
-    if (size <= DSIZE)
-        asize = 2 * DSIZE;
-    else
-        asize = DSIZE * ((size + (DSIZE) + (DSIZE-1))/DSIZE);
-
-    if ((bp = find_fit(asize)) != NULL) {
+    }
+    asize = ALIGN(size + DSIZE);
+    if ((bp = find_fit(asize)) != NULL)
+    {
         place(bp, asize);
         return bp;
     }
-    
-
     extendsize = MAX(asize, CHUNKSIZE);
-    if ((bp = extend_heap(extendsize/WSIZE)) == NULL)
+    if ((bp = extend_heap(extendsize / WSIZE)) == NULL)
         return NULL;
     place(bp, asize);
     return bp;
